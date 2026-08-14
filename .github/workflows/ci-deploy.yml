@@ -38,6 +38,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Validate commit messages
+        run: npm run commitlint -- --from "${{ github.event.pull_request.base.sha || github.event.before }}" --to "${{ github.sha }}"
       - run: npm run build
       - run: npm test
       - run: npm run db:migrate

@@ -54,6 +54,10 @@ npm run db:migrate    # Apply ordered SQL migrations
 npm run db:seed       # Idempotently load demo records
 ```
 
+## Contribution
+
+Commit messages follow [Conventional Commits](docs/commits.md) and are validated locally.
+
 ## Deployment
 
 Every pull request and push to `main` runs tests and production builds. A verified `main` push builds versioned Linux images in GitHub Actions, transfers the release over a dedicated SSH key, and activates the Compose stack behind the server's existing Traefik proxy. Images are built on GitHub rather than the small production server.
