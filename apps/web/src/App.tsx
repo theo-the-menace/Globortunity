@@ -1,295 +1,44 @@
-import {
-  ArrowLeft,
-  ArrowRight,
-  BriefcaseBusiness,
-  Building2,
-  CheckCircle2,
-  ExternalLink,
-  Filter,
-  Globe2,
-  LocateFixed,
-  MapPin,
-  RefreshCw,
-  Search,
-  SlidersHorizontal,
-  WifiOff,
-  X,
-} from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { fetchJobs, fetchSources, fetchStats } from "./api";
-import { companyInitials, formatSalary, relativeTime } from "./format";
-import type { Filters, Job, JobResponse, Source, Stats } from "./types";
+import { useMemo, useState } from "react";
+import { ArrowUpRight, BarChart3, BriefcaseBusiness, ChevronDown, CircleDollarSign, Globe2, Layers3, Search, ShieldCheck, Sparkles, TrendingUp, Users } from "lucide-react";
 
-const initialFilters: Filters = { query: "", location: "", remoteScope: "", source: "", page: 1 };
+type Market = "global" | "china";
+type View = "overview" | "demand" | "salary";
 
-function ScopeBadge({ scope }: { scope: Job["remoteScope"] }) {
-  const label = scope === "unknown" ? "Workplace unclear" : scope;
-  return <span className={`scope-badge scope-${scope}`}>{label}</span>;
-}
+const marketData = {
+  global: {
+    label: "海外市场", jobs: "1,353", jobsNote: "LiftmyCV · 2026.08.16 活跃岗位", active: "18.5K", salary: "$150K", salaryNote: "公开岗位薪资中位数 · P75 $204K", remote: "60.76%", growth: "2026", demand: "市场 / 社区 / 增长", demandShare: "49.8%",
+    roles: [["市场 / 社区 / 增长", 50, "675"], ["产品 / 项目", 29, "392"], ["工程 / 协议", 26, "351"], ["创意 / 设计", 23, "311"], ["研究 / 合规", 14, "189"], ["其他", 10, "135"]],
+    salaryRows: [["智能合约审计", "$179K", "$210K", "高需求"], ["Solidity 开发", "$120K", "$230K", "高需求"], ["DeFi 工程师", "$160K", "$280K", "高需求"], ["产品 / 增长", "$68K", "$220K", "区间宽"]],
+  },
+  china: {
+    label: "中国市场", jobs: "13.27%", jobsNote: "Bitget 2026 人才调研中的中国样本", active: "60.76%", salary: "¥28–42万", salaryNote: "按 $40K–60K 期望区间折算", remote: "60.76%", growth: "2026", demand: "市场 / 社区 / 增长", demandShare: "49.8%",
+    roles: [["市场 / 社区 / 增长", 50, "样本主导"], ["产品 / 项目", 29, "样本"], ["工程 / 协议", 26, "样本"], ["创意 / 设计", 23, "样本"], ["研究 / 合规", 14, "样本"], ["其他", 10, "样本"]],
+    salaryRows: [["国际远程初级岗位", "$40K", "$60K", "主流期望"], ["协议 / 智能合约工程师", "¥35万", "¥65万", "估算"], ["产品 / 运营", "¥25万", "¥50万", "估算"], ["增长 / 社区", "¥20万", "¥42万", "估算"]],
+  },
+} as const;
+const recentRoles = [["Senior Smart Contract Engineer", "Scroll", "Remote · Worldwide", "$140K–190K", "2h ago", "SOLIDITY"], ["生态增长负责人", "某头部交易平台", "上海 / Remote", "¥45万–70万", "5h ago", "GROWTH"], ["Protocol Product Manager", "EigenLayer", "Remote · EU time", "$120K–170K", "8h ago", "PRODUCT"]] as const;
 
-function CompanyMark({ name }: { name: string }) {
-  const variant = name.charCodeAt(0) % 4;
-  return <span className={`company-mark company-mark-${variant}`}>{companyInitials(name)}</span>;
-}
-
-function JobListItem({ job, selected, onSelect }: { job: Job; selected: boolean; onSelect: () => void }) {
-  return (
-    <button className={`job-row${selected ? " selected" : ""}`} onClick={onSelect} type="button">
-      <CompanyMark name={job.company} />
-      <span className="job-row-content">
-        <span className="job-row-heading">
-          <strong>{job.title}</strong>
-          <span className="posted-time">{relativeTime(job.publishedAt ?? job.firstSeenAt)}</span>
-        </span>
-        <span className="company-name">{job.company}</span>
-        <span className="job-meta">
-          <span><MapPin size={14} />{job.location}</span>
-          <span><BriefcaseBusiness size={14} />{job.employmentType}</span>
-        </span>
-        <span className="job-row-footer">
-          <span className="salary">{formatSalary(job)}</span>
-          <ScopeBadge scope={job.remoteScope} />
-        </span>
-      </span>
-    </button>
-  );
-}
-
-function JobDetail({ job }: { job: Job }) {
-  const source = job.sources[0];
-  return (
-    <article className="job-detail">
-      <header className="detail-header">
-        <CompanyMark name={job.company} />
-        <div>
-          <p className="detail-company">{job.company}</p>
-          <h2>{job.title}</h2>
-        </div>
-      </header>
-
-      <div className="detail-facts">
-        <span><MapPin size={16} />{job.location}</span>
-        <span><BriefcaseBusiness size={16} />{job.employmentType}</span>
-        <span><Globe2 size={16} />{job.remoteScope}</span>
-      </div>
-
-      <div className="detail-actions">
-        {source ? (
-          <a className="primary-button" href={source.url} target="_blank" rel="noreferrer">
-            View original <ExternalLink size={16} />
-          </a>
-        ) : null}
-        <span className="freshness"><CheckCircle2 size={16} />Checked {relativeTime(job.lastSeenAt)}</span>
-      </div>
-
-      <dl className="detail-summary">
-        <div>
-          <dt>Compensation</dt>
-          <dd>{formatSalary(job)}</dd>
-        </div>
-        <div>
-          <dt>Work arrangement</dt>
-          <dd><ScopeBadge scope={job.remoteScope} /></dd>
-        </div>
-      </dl>
-
-      <section className="detail-section">
-        <h3>Role overview</h3>
-        <p>{job.description}</p>
-      </section>
-
-      <section className="detail-section">
-        <h3>Skills and focus</h3>
-        <div className="tag-list">
-          {job.tags.map((tag) => <span key={tag}>{tag}</span>)}
-        </div>
-      </section>
-
-      <footer className="source-note">
-        <Building2 size={16} />
-        <span>{job.sources.length} source{job.sources.length === 1 ? "" : "s"} matched this listing</span>
-      </footer>
-    </article>
-  );
-}
-
-function LoadingRows() {
-  return <div className="loading-rows" aria-label="Loading jobs">
-    {[0, 1, 2, 3].map((row) => <div className="loading-row" key={row}><span /><div><i /><i /><i /></div></div>)}
-  </div>;
-}
+function StatCard({ icon: Icon, label, value, note, accent }: { icon: typeof BriefcaseBusiness; label: string; value: string; note: string; accent?: string }) { return <div className="stat-card"><div className={`stat-icon ${accent ?? ""}`}><Icon size={17} /></div><p>{label}</p><strong>{value}</strong><span>{note}</span></div>; }
 
 export default function App() {
-  const [draft, setDraft] = useState(initialFilters);
-  const [filters, setFilters] = useState(initialFilters);
-  const [jobs, setJobs] = useState<JobResponse | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [sources, setSources] = useState<Source[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshToken, setRefreshToken] = useState(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    Promise.all([fetchStats(controller.signal), fetchSources(controller.signal)])
-      .then(([nextStats, nextSources]) => {
-        setStats(nextStats);
-        setSources(nextSources);
-      })
-      .catch((requestError: unknown) => {
-        if (!(requestError instanceof DOMException && requestError.name === "AbortError")) setError("Could not load source status.");
-      });
-    return () => controller.abort();
-  }, [refreshToken]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-    fetchJobs(filters, controller.signal)
-      .then((result) => {
-        setJobs(result);
-        setSelectedId((current) => result.items.some((job) => job.id === current) ? current : (result.items[0]?.id ?? null));
-      })
-      .catch((requestError: unknown) => {
-        if (!(requestError instanceof DOMException && requestError.name === "AbortError")) setError("The job feed is temporarily unavailable.");
-      })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
-  }, [filters, refreshToken]);
-
-  const selectedJob = useMemo(
-    () => jobs?.items.find((job) => job.id === selectedId) ?? jobs?.items[0] ?? null,
-    [jobs, selectedId],
-  );
-  const hasFilters = Boolean(filters.query || filters.location || filters.remoteScope || filters.source);
-  const totalPages = jobs ? Math.max(1, Math.ceil(jobs.total / jobs.limit)) : 1;
-
-  const submitSearch = (event: FormEvent) => {
-    event.preventDefault();
-    setFilters({ ...draft, page: 1 });
-  };
-
-  const clearFilters = () => {
-    setDraft(initialFilters);
-    setFilters(initialFilters);
-  };
-
-  const goToPage = (page: number) => {
-    setFilters((current) => ({ ...current, page }));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="Globortunity home">
-          <span className="brand-mark"><Globe2 size={21} /></span>
-          <span>Globortunity</span>
-        </a>
-        <div className="feed-status">
-          <span className="status-dot" />
-          {stats?.lastUpdatedAt ? `Updated ${relativeTime(stats.lastUpdatedAt)}` : "Feed starting"}
-        </div>
-      </header>
-
-      <main>
-        <section className="search-band">
-          <div className="search-inner">
-            <div className="search-heading">
-              <div>
-                <p className="eyebrow">Remote opportunity index</p>
-                <h1>Remote jobs, clearly sourced.</h1>
-              </div>
-              <button className="icon-button" title="Refresh jobs" aria-label="Refresh jobs" onClick={() => setRefreshToken((value) => value + 1)}>
-                <RefreshCw size={18} />
-              </button>
-            </div>
-
-            <form className="search-form" onSubmit={submitSearch}>
-              <label className="field keyword-field">
-                <Search size={18} />
-                <span className="sr-only">Keyword</span>
-                <input value={draft.query} onChange={(event) => setDraft({ ...draft, query: event.target.value })} placeholder="Role, skill, or company" />
-              </label>
-              <label className="field location-field">
-                <LocateFixed size={18} />
-                <span className="sr-only">Location</span>
-                <input value={draft.location} onChange={(event) => setDraft({ ...draft, location: event.target.value })} placeholder="Country or time zone" />
-              </label>
-              <button className="search-button" type="submit"><Search size={18} />Search jobs</button>
-            </form>
-
-            <div className="filter-row">
-              <div className="scope-control" aria-label="Work arrangement">
-                {(["", "remote", "hybrid"] as const).map((scope) => (
-                  <button
-                    className={draft.remoteScope === scope ? "active" : ""}
-                    key={scope || "all"}
-                    onClick={() => setDraft({ ...draft, remoteScope: scope })}
-                    type="button"
-                  >
-                    {scope || "All roles"}
-                  </button>
-                ))}
-              </div>
-              <label className="source-select">
-                <SlidersHorizontal size={16} />
-                <select value={draft.source} onChange={(event) => setDraft({ ...draft, source: event.target.value })} aria-label="Job source">
-                  <option value="">All sources</option>
-                  {sources.filter((source) => source.enabled).map((source) => <option value={source.id} key={source.id}>{source.label}</option>)}
-                </select>
-              </label>
-              {hasFilters ? <button className="clear-button" onClick={clearFilters} type="button"><X size={15} />Clear</button> : null}
-            </div>
-          </div>
-        </section>
-
-        <section className="workspace">
-          <div className="summary-strip">
-            <span><strong>{stats?.activeJobs ?? 0}</strong> active roles</span>
-            <span><strong>{stats?.remoteJobs ?? 0}</strong> fully remote</span>
-            <span><strong>{stats?.sources ?? 0}</strong> active sources</span>
-          </div>
-
-          {error ? (
-            <div className="error-state" role="alert">
-              <WifiOff size={24} />
-              <div><strong>Feed unavailable</strong><p>{error}</p></div>
-              <button onClick={() => setRefreshToken((value) => value + 1)} type="button">Try again</button>
-            </div>
-          ) : (
-            <div className="results-layout">
-              <section className="results-list" aria-label="Job results">
-                <div className="results-toolbar">
-                  <div><Filter size={16} /><strong>{jobs?.total ?? 0}</strong> matches</div>
-                  <span>Newest first</span>
-                </div>
-                {loading && !jobs ? <LoadingRows /> : null}
-                {!loading && jobs?.items.length === 0 ? (
-                  <div className="empty-state"><Search size={28} /><strong>No matching roles</strong><p>Try a broader title or location.</p><button onClick={clearFilters} type="button">Reset filters</button></div>
-                ) : null}
-                <div className={loading ? "job-list is-refreshing" : "job-list"}>
-                  {jobs?.items.map((job) => (
-                    <JobListItem job={job} key={job.id} selected={selectedJob?.id === job.id} onSelect={() => setSelectedId(job.id)} />
-                  ))}
-                </div>
-                {jobs && jobs.total > jobs.limit ? (
-                  <nav className="pagination" aria-label="Results pages">
-                    <button className="icon-button" title="Previous page" aria-label="Previous page" disabled={filters.page <= 1} onClick={() => goToPage(filters.page - 1)}><ArrowLeft size={18} /></button>
-                    <span>Page {filters.page} of {totalPages}</span>
-                    <button className="icon-button" title="Next page" aria-label="Next page" disabled={filters.page >= totalPages} onClick={() => goToPage(filters.page + 1)}><ArrowRight size={18} /></button>
-                  </nav>
-                ) : null}
-              </section>
-              <aside className="detail-pane" aria-live="polite">
-                {selectedJob ? <JobDetail job={selectedJob} /> : <div className="detail-placeholder"><BriefcaseBusiness size={30} /><p>Select a role to see its details.</p></div>}
-              </aside>
-            </div>
-          )}
-        </section>
-      </main>
-    </div>
-  );
+  const [market, setMarket] = useState<Market>("global");
+  const [view, setView] = useState<View>("overview");
+  const [query, setQuery] = useState("");
+  const data = marketData[market];
+  const filteredRoles = useMemo(() => recentRoles.filter((role) => role.join(" ").toLowerCase().includes(query.toLowerCase())), [query]);
+  return <div className="terminal-shell">
+    <header className="topbar"><a className="brand" href="/"><span className="brand-mark"><Globe2 size={19} /></span><span>GLOBORTUNITY</span><em>RESEARCH</em></a><nav><button className={view === "overview" ? "active" : ""} onClick={() => setView("overview")}>总览</button><button className={view === "demand" ? "active" : ""} onClick={() => setView("demand")}>需求分析</button><button className={view === "salary" ? "active" : ""} onClick={() => setView("salary")}>薪资坐标</button></nav><div className="live-indicator"><i />LIVE INDEX <span>2026.08</span></div></header>
+    <main className="content">
+      <section className="hero"><div><p className="kicker"><Sparkles size={14} /> WEB3 TALENT INTELLIGENCE</p><h1>人才流向，<span>链上可见。</span></h1><p className="hero-copy">追踪 2026 年 Web3 招聘需求、技术栈与薪资溢价。为下一次职业决策，提供一张更清晰的地图。</p></div><div className="hero-meta"><span>数据快照</span><strong>2026 / 08 / 16</strong><small>公开岗位 + 人才调研</small></div></section>
+      <div className="control-bar"><div className="market-switch"><button className={market === "global" ? "selected" : ""} onClick={() => setMarket("global")}><span>◉</span>海外市场</button><button className={market === "china" ? "selected" : ""} onClick={() => setMarket("china")}><span>中</span>中国市场</button></div><label className="terminal-search"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索岗位、技能或协议…" /></label><button className="export-button"><ArrowUpRight size={15} /> 导出快照</button></div>
+      <section className="stat-grid"><StatCard icon={BriefcaseBusiness} label="可观测岗位" value={data.jobs} note={data.jobsNote} accent="green" /><StatCard icon={Users} label="当前活跃岗位" value={data.active} note="过去 30 天仍在招聘" /><StatCard icon={CircleDollarSign} label="技术岗薪资中位数" value={data.salary} note={data.salaryNote} accent="yellow" /><StatCard icon={TrendingUp} label="薪资同比变化" value={data.growth} note="相较 2024 H2" accent="purple" /></section>
+      <section className="dashboard-grid">
+        <article className="panel demand-panel"><div className="panel-head"><div><span className="panel-label">01 / DEMAND MAP</span><h2>岗位需求结构</h2></div><button className="small-select">近 12 个月 <ChevronDown size={13} /></button></div><div className="demand-highlight"><div><span>需求最高的方向</span><strong>{data.demand}</strong><small>占全部岗位 <b>{data.demandShare}</b></small></div><div className="demand-ring"><span>{data.demandShare}</span><small>SHARE</small></div></div><div className="bars">{data.roles.map(([name, value, count]) => <div className="bar-row" key={name}><span>{name}</span><div><i style={{ width: `${value * 2.8}%` }} /></div><b>{count}</b><em>{value}%</em></div>)}</div><p className="source-line"><ShieldCheck size={13} /> 需求量为岗位样本去重后的估算值</p></article>
+        <article className="panel premium-panel"><div className="panel-head"><div><span className="panel-label">02 / GEOGRAPHIC PREMIUM</span><h2>地域薪资坐标</h2></div><BarChart3 size={18} className="muted-icon" /></div><div className="premium-chart"><div className="chart-y"><span>¥160万</span><span>¥120万</span><span>¥80万</span><span>¥40万</span><span>¥0</span></div><div className="chart-area"><div className="grid-lines" />{(market === "global" ? [[34, 62], [47, 77], [40, 69], [63, 88]] as const : [[28, 51], [38, 64], [32, 56], [48, 74]] as const).map(([a, b], i) => <div className="chart-column" key={i}><div className="column-stack"><i style={{ height: `${a}%` }} /><b style={{ height: `${b - a}%` }} /></div><span>{(["亚太", "欧洲", "北美", "远程"] as const)[i] ?? ""}</span></div>)}</div></div><div className="legend"><span><i className="legend-low" />中位数</span><span><i className="legend-high" />P75</span><strong>{data.remote} <small>岗位支持远程</small></strong></div></article>
+      </section>
+      {(view === "overview" || view === "salary") && <section className="panel salary-panel"><div className="panel-head"><div><span className="panel-label">03 / SALARY BENCHMARK</span><h2>热门岗位薪资基准</h2></div><span className="unit-note">单位：{market === "global" ? "USD / 年" : "CNY / 年"}</span></div><div className="salary-table"><div className="table-row table-head"><span>岗位类别</span><span>中位数</span><span>P75 上限</span><span>同比</span></div>{data.salaryRows.map((row) => <div className="table-row" key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><span>{row[2]}</span><b>{row[3]}</b></div>)}</div><p className="source-line"><ShieldCheck size={13} /> 薪资为公开职位描述、Web3.Career 与 Calyptus 报告交叉样本，未披露职位不纳入分母</p></section>}
+      {(view === "overview" || view === "demand") && <section className="roles-section"><div className="section-title"><div><span className="panel-label">04 / LIVE ROLE FEED</span><h2>岗位样本</h2></div><button className="all-roles">查看全部岗位 <ArrowUpRight size={14} /></button></div><div className="role-list">{filteredRoles.map((role) => <article className="role-row" key={role[0]}><div className="role-logo">{role[1].slice(0, 2).toUpperCase()}</div><div className="role-main"><strong>{role[0]}</strong><span>{role[1]} · {role[2]}</span></div><code>{role[5]}</code><b>{role[3]}</b><small>{role[4]}</small><ArrowUpRight size={16} className="role-arrow" /></article>)}</div></section>}
+      <footer className="footer"><span><Layers3 size={14} /> GLOBORTUNITY RESEARCH DESK</span><span>数据来源：LiftmyCV Web3 Jobs Aug 2026 · Web3.Career Remote Jobs 2026 · Bitget Talent Intelligence 2026 · gm.careers Salaries 2026</span><a href="https://www.liftmycv.com/jobs/web3-jobs/" target="_blank" rel="noreferrer">查看方法论 <ArrowUpRight size={13} /></a></footer>
+    </main>
+  </div>;
 }
