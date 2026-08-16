@@ -1,6 +1,6 @@
 import { connectDatabase } from "@globortunity/database";
 import { demoJobs } from "@globortunity/database/demo-data";
-import { BossCollector, StaticCollector, type Collector } from "./collectors.js";
+import { BossCollector, HimalayasCollector, RemoteOkCollector, StaticCollector, type Collector } from "./collectors.js";
 import { parseCollectorInterval } from "./config.js";
 import { runAllCollectors } from "./runner.js";
 
@@ -9,6 +9,10 @@ const enabled = (value: string | undefined, fallback = false) =>
 
 const collectors: Collector[] = [];
 if (enabled(process.env.DEMO_SOURCE_ENABLED, true)) collectors.push(new StaticCollector(demoJobs));
+if (enabled(process.env.PUBLIC_FEEDS_ENABLED)) {
+  collectors.push(new HimalayasCollector());
+  collectors.push(new RemoteOkCollector());
+}
 const liveCollectionEnabled = enabled(process.env.CRAWLING_ENABLED);
 collectors.push(
   new BossCollector({

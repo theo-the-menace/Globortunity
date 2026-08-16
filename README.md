@@ -8,6 +8,13 @@ The runnable MVP includes:
 - A Fastify REST API with validation, public rate limiting, health checks, and pagination.
 - PostgreSQL storage with exact source identity, provenance, conservative fingerprints, and idempotent upserts.
 - A lightweight collector process with source-level policy gates and crawl-run history.
+- Authorized public-feed collectors for [Himalayas](https://himalayas.app/api) and [Remote OK](https://remoteok.com/api), with pagination, Web3 relevance filtering, attribution links, provenance, and cross-source deduplication.
+
+## Public Feed Aggregation
+
+The worker can aggregate jobs from public JSON feeds without login, browser automation, or private endpoints. Set `PUBLIC_FEEDS_ENABLED=true` to enable the Himalayas and Remote OK collectors. Himalayas is paged with `HIMALAYAS_MAX_PAGES` (20 jobs per request; default 100 pages). The collector keeps source URLs on every result and filters for Web3-related terms before persistence. Increase the page budget deliberately and respect upstream rate limits; “all searchable jobs” means all matching jobs available through the permitted feed window, not a bypass of source limits.
+
+Both providers require attribution/backlinks. The web UI keeps the original source URL available to candidates. Demo data is disabled by default in the example deployment so synthetic rows do not contaminate the aggregate.
 - Docker Compose packaging, resource limits, CI, and automatic deployment from `main`.
 
 ## BOSS Zhipin Status
